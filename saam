@@ -1,0 +1,144 @@
+#!/bin/bash
+
+DEBUG=0
+
+set -o pipefail
+set -o nounset
+
+if [ $DEBUG -eq 1 ]; then
+  set -o errexit
+  trap 'echo "Aborting due to errexit on line $LINENO. Exit code: $?" >&2' ERR
+  set -o errtrace
+fi
+
+IFS=$'\n\t'
+
+HELP_MESSAGE="
+Usage: saam.sh [OPTIONS] [TAG]
+
+Description:
+Tag and retrieve files
+
+Options:
+-h		Display this help message.
+-v		Display the script version.
+ls		List all tags
+ls [tag]	Print files inside specified [tag]
+edit [tag]	Edit contents of specified [tag]
+rm		Deletes all tags
+rm [tag]	Delete specific tag
+"
+
+VERSION=0.1
+TAG_DIR=${TMPDIR}saam__/
+TAG_SUFFIX=".txt"
+
+declare TAG
+
+function TAG_CONTENTS_REPLACE() {
+  files=$1
+
+  \echo -e "$files" > "$TAG"
+}
+
+function TAG_CONTENTS_READ() {
+  if [[ -e $TAG ]]; then
+    \cat "$TAG"
+  fi
+}
+
+function TAG_CONTENTS_EDIT() {
+  $EDITOR "$TAG"
+}
+
+function TAG_REMOVE() {
+  \read -rp "Delete tag ""$TAG"" (y/n): " response
+
+  if [[ "$response" =~ ^[Yy]$ ]]; then
+    \rm "${TAG}"
+  fi
+}
+
+function TAGS_CREATE_DIR() {
+  if ! [[ -d $TAG_DIR ]]; then
+    \mkdir "${TAG_DIR}"
+  fi
+}
+
+function TAGS_CLEAN() {
+  \read -rp "Delete tags (y/n): " response
+
+  if [[ "$response" =~ ^[Yy]$ ]]; then
+    \rm "$(find "$TAG_DIR" -iname "*${TAG_SUFFIX}")"
+  fi
+}
+
+function TAGS_READ_ALL() {
+  found_tags=$(\find "$TAG_DIR"*"$TAG_SUFFIX" 2> /dev/null)
+
+  if [ -z "$found_tags" ]; then
+    \echo "No tags found"
+    exit 1
+  else
+    tag_name=${found_tags/${TAG_DIR}/}
+    \echo "${tag_name/$TAG_SUFFIX/}"
+  fi
+}
+
+TAGS_CREATE_DIR
+
+if [ -t 0 ]; then
+  if [ "$#" -eq 0 ]; then
+    \echo "No arguments provided"
+    exit 1
+  fi
+
+  command="$1"
+  TAG="${TAG_DIR}${2:-""}${TAG_SUFFIX}"
+
+  if [ "$command" == "-v"  ]; then
+    \echo  "$VERSION"
+    exit 0
+  fi
+
+  if [ "$command" == "-h"  ]; then
+    \echo  "$HELP_MESSAGE"
+    exit 0
+  fi
+
+  if [ "$command" == "edit"  ]; then
+    TAG_CONTENTS_EDIT
+    exit 0
+  fi
+
+
+  if [ "$command" == "ls"  ]; then
+    if [ "$#" -eq 1 ]; then
+      TAGS_READ_ALL
+    else
+      TAG_CONTENTS_READ
+    fi
+    exit 0
+  fi
+
+  if [ "$command" == "rm"  ]; then
+    if [ "$#" -eq 1 ]; then
+      TAGS_CLEAN
+    else
+      TAG_REMOVE
+    fi
+    exit 0
+  fi
+else
+  stdin=$(\cat)
+  TAG="${TAG_DIR}$1${TAG_SUFFIX}"
+
+  if [[ -e $TAG ]]; then
+    contents=$(TAG_CONTENTS_READ)
+    TAG_CONTENTS_REPLACE "${contents}\n${stdin}"
+  else
+    TAG_CONTENTS_REPLACE "${stdin}"
+  fi
+
+  exit 0
+fi
