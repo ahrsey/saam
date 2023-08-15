@@ -29,7 +29,7 @@ rm		Deletes all tags
 rm [tag]	Delete specific tag
 "
 
-VERSION=0.1
+VERSION=0.1.1
 TAG_DIR=${TMPDIR}saam__/
 TAG_SUFFIX=".txt"
 
